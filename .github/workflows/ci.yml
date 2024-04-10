@@ -68,9 +68,9 @@ jobs:
         rust-version: ${{ matrix.toolchain.rust }}
         targets: ${{ matrix.platform.target }}
 
-    - name: Install cargo-apk
+    - name: Install cargo-ndk
       if: contains(matrix.platform.target, 'android')
-      run: cargo install cargo-apk
+      run: cargo install cargo-ndk
 
     - name: Build
       if: contains(matrix.platform.target, 'android') == false
@@ -78,7 +78,7 @@ jobs:
 
     - name: Build android
       if: contains(matrix.platform.target, 'android')
-      run: cargo apk build --target ${{ matrix.platform.target }} --all-features
+      run: cargo ndk --target ${{ matrix.platform.target }} --platform 31 -- build --all-features
 
     - name: Rust tests
       if: matrix.platform.cross == false
