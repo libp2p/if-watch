@@ -15,7 +15,7 @@ jobs:
           host: ubuntu-latest
           cross: false
 
-        - target: x86_64-apple-darwin
+        - target: aarch64-apple-darwin
           host: macos-latest
           cross: false
 
@@ -107,3 +107,80 @@ jobs:
 
     - name: cargo clippy
       run: cargo clippy --workspace --all-features --examples --tests -- -D warnings
+
+  apple-platforms:
+    name: Test on ${{ matrix.name }}
+    needs: gather_published_crates
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+            - name: ios
+              target: aarch64-apple-ios-sim
+              platform: auto-ios-aarch64-sim
+              unstable: false
+              deviceType: iPhone-15-Pro-Max
+              deviceName: my-iphone-15-pro-max
+            - name: tvOS
+              target: aarch64-apple-tvos-sim
+              platform: auto-tvos-aarch64-sim
+              unstable: true
+              deviceType: Apple-TV-4K-3rd-generation-4K
+              deviceName: my-4ktv
+            - name: watchOS
+              target: aarch64-apple-watchos-sim
+              platform: auto-watchos-aarch64-sim
+              unstable: true
+              deviceType: Apple-Watch-Ultra-2-49mm
+              deviceName: my-apple-watch
+            - name: visionOS
+              target: aarch64-apple-visionos-sim
+              platform: auto-visionos-aarch64-sim
+              unstable: true
+              deviceType: Apple-Vision-Pro
+              deviceName: my-apple-vision-pro
+    runs-on: macos-latest
+    env:
+      NAME: ${{ matrix.name }}
+      PLATFORM: ${{ matrix.platform }}
+      DEVICE_TYPE: ${{ matrix.deviceType }}
+      DEVICE_NAME: ${{ matrix.deviceName }}
+      BUILD_STD: ${{ matrix.unstable && '-Z build-std' || '' }}
+      PACKAGES: -p ${{ join(fromJSON(needs.gather_published_crates.outputs.members), ' -p ') }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+            fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+        if: ${{ !matrix.unstable }}
+        with:
+            targets: ${{ matrix.target }}
+
+      - uses: dtolnay/rust-toolchain@master
+        if: ${{ matrix.unstable }}
+        with:
+            toolchain: nightly
+            components: rust-src
+
+      - name: Check if compiles on ${{ matrix.name }}
+        run: cargo check $PACKAGES --all-features --target=${{ matrix.target }} $BUILD_STD --tests
+
+      - name: Install cargo dinghy
+        uses: taiki-e/cache-cargo-install-action@v2
+        with:
+            tool: cargo-dinghy
+
+      - name: Start ${{ matrix.name }} simulator
+        id: boot-simulator
+        run: |
+            RUNTIME_ID=$(xcrun simctl list runtimes | grep $NAME | cut -d ' ' -f 7 | tail -1)
+            export SIM_ID=$(xcrun simctl create $DEVICE_NAME com.apple.CoreSimulator.SimDeviceType.$DEVICE_TYPE $RUNTIME_ID)
+            xcrun simctl boot $SIM_ID
+            echo "sim-id=$SIM_ID" >> $GITHUB_OUTPUT
+
+      - name: Run all tests
+        env:
+            SIM_ID: ${{ steps.boot-simulator.outputs.sim-id }}
+        run: cargo dinghy -d $SIM_ID -p $PLATFORM test $PACKAGES --all-features $BUILD_STD
+
