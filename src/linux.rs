@@ -110,9 +110,23 @@ where
                 return Poll::Ready(Ok(event));
             }
             if Pin::new(&mut self.conn).poll(cx).is_ready() {
-                return Poll::Ready(Err(socket_err()));
+                return Poll::Ready(Err(socket_err(
+                    "rtnetlink socket closed. Connection has been terminated.",
+                )));
             }
-            let message = ready!(self.messages.poll_next_unpin(cx)).ok_or_else(socket_err)??;
+            let message = match ready!(self.messages.poll_next_unpin(cx)) {
+                Some(Ok(message)) => message,
+                Some(Err(error)) => {
+                    return Poll::Ready(Err(socket_err(&format!(
+                        "rtnetlink socket closed. {error}"
+                    ))));
+                }
+                None => {
+                    return Poll::Ready(Err(socket_err(
+                        "rtnetlink socket closed. Empty message has been returned.",
+                    )));
+                }
+            };
             match message {
                 RtnlMessage::NewAddress(msg) => self.add_address(msg),
                 RtnlMessage::DelAddress(msg) => self.rem_address(msg),
@@ -122,8 +136,8 @@ where
     }
 }
 
-fn socket_err() -> std::io::Error {
-    std::io::Error::new(ErrorKind::BrokenPipe, "rtnetlink socket closed")
+fn socket_err(error: &str) -> std::io::Error {
+    std::io::Error::new(ErrorKind::BrokenPipe, error)
 }
 
 fn iter_nets(msg: AddressMessage) -> impl Iterator<Item = IpNet> {
