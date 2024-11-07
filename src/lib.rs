@@ -4,9 +4,16 @@
 
 pub use ipnet::{IpNet, Ipv4Net, Ipv6Net};
 
-#[cfg(target_os = "macos")]
-mod apple;
-#[cfg(target_os = "ios")]
+#[cfg(all(
+    target_vendor = "apple",
+    any(
+        target_os = "macos",
+        target_os = "ios",
+        target_os = "tvos",
+        target_os = "watchos",
+        target_os = "visionos"
+    ),
+))]
 mod apple;
 #[cfg(not(any(
     target_os = "ios",
@@ -20,28 +27,62 @@ mod linux;
 #[cfg(target_os = "windows")]
 mod win;
 
-#[cfg(any(target_os = "macos", target_os = "ios"))]
+#[cfg(all(
+    target_vendor = "apple",
+    any(
+        target_os = "macos",
+        target_os = "ios",
+        target_os = "tvos",
+        target_os = "watchos",
+        target_os = "visionos"
+    ),
+))]
 #[cfg(feature = "tokio")]
 pub use apple::tokio;
 
-#[cfg(any(target_os = "macos", target_os = "ios"))]
+#[cfg(all(
+    target_vendor = "apple",
+    any(
+        target_os = "macos",
+        target_os = "ios",
+        target_os = "tvos",
+        target_os = "watchos",
+        target_os = "visionos"
+    ),
+))]
 #[cfg(feature = "smol")]
 pub use apple::smol;
 
 #[cfg(feature = "smol")]
 #[cfg(not(any(
-    target_os = "ios",
+    all(
+        target_vendor = "apple",
+        any(
+            target_os = "macos",
+            target_os = "ios",
+            target_os = "tvos",
+            target_os = "watchos",
+            target_os = "visionos"
+        ),
+    ),
     target_os = "linux",
-    target_os = "macos",
     target_os = "windows",
 )))]
 pub use fallback::smol;
 
 #[cfg(feature = "tokio")]
 #[cfg(not(any(
-    target_os = "ios",
+    all(
+        target_vendor = "apple",
+        any(
+            target_os = "macos",
+            target_os = "ios",
+            target_os = "tvos",
+            target_os = "watchos",
+            target_os = "visionos"
+        ),
+    ),
     target_os = "linux",
-    target_os = "macos",
     target_os = "windows",
 )))]
 pub use fallback::tokio;
