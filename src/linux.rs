@@ -3,11 +3,12 @@ use fnv::FnvHashSet;
 use futures::ready;
 use futures::stream::{FusedStream, Stream, TryStreamExt};
 use futures::StreamExt;
+use netlink_packet_core::NetlinkPayload;
+use netlink_packet_route::rtnl::address::nlas::Nla;
+use netlink_packet_route::rtnl::{AddressMessage, RtnlMessage};
+use netlink_proto::Connection;
+use netlink_sys::{AsyncSocket, SocketAddr};
 use rtnetlink::constants::{RTMGRP_IPV4_IFADDR, RTMGRP_IPV6_IFADDR};
-use rtnetlink::packet::address::nlas::Nla;
-use rtnetlink::packet::{AddressMessage, RtnlMessage};
-use rtnetlink::proto::{Connection, NetlinkPayload};
-use rtnetlink::sys::{AsyncSocket, SocketAddr};
 use std::collections::VecDeque;
 use std::future::Future;
 use std::io::{Error, ErrorKind, Result};
@@ -17,8 +18,8 @@ use std::task::{Context, Poll};
 
 #[cfg(feature = "tokio")]
 pub mod tokio {
-    //! An interface watcher that uses `rtnetlink`'s [`TokioSocket`](rtnetlink::sys::TokioSocket)
-    use rtnetlink::sys::TokioSocket;
+    //! An interface watcher that uses `netlink`'s [`TokioSocket`](netlink_sys::TokioSocket)
+    use netlink_sys::TokioSocket;
 
     /// Watches for interface changes.
     pub type IfWatcher = super::IfWatcher<TokioSocket>;
@@ -26,8 +27,8 @@ pub mod tokio {
 
 #[cfg(feature = "smol")]
 pub mod smol {
-    //! An interface watcher that uses `rtnetlink`'s [`SmolSocket`](rtnetlink::sys::SmolSocket)
-    use rtnetlink::sys::SmolSocket;
+    //! An interface watcher that uses `netlink`'s [`SmolSocket`](netlink_sys::SmolSocket)
+    use netlink_sys::SmolSocket;
 
     /// Watches for interface changes.
     pub type IfWatcher = super::IfWatcher<SmolSocket>;
@@ -110,9 +111,23 @@ where
                 return Poll::Ready(Ok(event));
             }
             if Pin::new(&mut self.conn).poll(cx).is_ready() {
-                return Poll::Ready(Err(socket_err()));
+                return Poll::Ready(Err(socket_err(
+                    "rtnetlink socket closed. Connection has been terminated.",
+                )));
             }
-            let message = ready!(self.messages.poll_next_unpin(cx)).ok_or_else(socket_err)??;
+            let message = match ready!(self.messages.poll_next_unpin(cx)) {
+                Some(Ok(message)) => message,
+                Some(Err(error)) => {
+                    return Poll::Ready(Err(socket_err(&format!(
+                        "rtnetlink socket closed. {error}"
+                    ))));
+                }
+                None => {
+                    return Poll::Ready(Err(socket_err(
+                        "rtnetlink socket closed. Empty message has been returned.",
+                    )));
+                }
+            };
             match message {
                 RtnlMessage::NewAddress(msg) => self.add_address(msg),
                 RtnlMessage::DelAddress(msg) => self.rem_address(msg),
@@ -122,8 +137,8 @@ where
     }
 }
 
-fn socket_err() -> std::io::Error {
-    std::io::Error::new(ErrorKind::BrokenPipe, "rtnetlink socket closed")
+fn socket_err(error: &str) -> std::io::Error {
+    std::io::Error::new(ErrorKind::BrokenPipe, error)
 }
 
 fn iter_nets(msg: AddressMessage) -> impl Iterator<Item = IpNet> {
