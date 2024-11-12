@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Update `system-configuration` crate.
   See [PR_37](https://github.com/mxinden/if-watch/pull/37).
+- Update `smol` crate.
+  See [PR_42](https://github.com/mxinden/if-watch/pull/42).
 
 ## [3.2.0]
 
