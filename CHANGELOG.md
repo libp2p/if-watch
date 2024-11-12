@@ -9,10 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Update `system-configuration` crate.
+- Update `system-configuration` crate to version 0.6.
   See [PR_37](https://github.com/mxinden/if-watch/pull/37).
-- Update `smol` crate.
+- Update `smol` crate to version 2.
   See [PR_42](https://github.com/mxinden/if-watch/pull/42).
+- linux: Improve error message by including specific reasons.
+  See [PR_39](https://github.com/mxinden/if-watch/pull/39).
+- Update `rtnetlink` crate to version 0.13.
+  See [PR_35](https://github.com/mxinden/if-watch/pull/35).
+- Update `windows` crate to allow version 0.52.
+  See [PR_35](https://github.com/mxinden/if-watch/pull/35).
 
 ## [3.2.0]
 
