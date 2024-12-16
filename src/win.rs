@@ -96,10 +96,13 @@ impl IfWatcher {
             if let Some(event) = self.queue.pop_front() {
                 return Poll::Ready(Ok(event));
             }
-            if !self.shared.resync.swap(false, Ordering::Relaxed) {
-                self.shared.waker.register(cx.waker());
+
+            self.shared.waker.register(cx.waker());
+            if !self.shared.resync.swap(false, Ordering::AcqRel) {
                 return Poll::Pending;
             }
+            self.shared.waker.take();
+
             if let Err(error) = self.resync() {
                 return Poll::Ready(Err(error));
             }
@@ -145,7 +148,7 @@ struct IfWatcherShared {
 
 impl IpChangeCallback for IfWatcherShared {
     fn callback(&self, _row: &MIB_IPINTERFACE_ROW, _notification_type: MIB_NOTIFICATION_TYPE) {
-        self.resync.store(true, Ordering::Relaxed);
+        self.resync.store(true, Ordering::Release);
         self.waker.wake();
     }
 }
