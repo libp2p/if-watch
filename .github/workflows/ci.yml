@@ -63,9 +63,9 @@ jobs:
       run: choco install llvm
 
     - name: Install rust toolchain
-      uses: hecrj/setup-rust-action@v1
+      uses: dtolnay/rust-toolchain@master
       with:
-        rust-version: ${{ matrix.toolchain.rust }}
+        toolchain: ${{ matrix.toolchain.rust }}
         targets: ${{ matrix.platform.target }}
 
     - name: Install cargo-ndk
@@ -97,9 +97,8 @@ jobs:
         key: lint-cargo
 
     - name: Install rust toolchain
-      uses: hecrj/setup-rust-action@v1
+      uses: dtolnay/rust-toolchain@stable
       with:
-        rust-version: stable
         components: clippy, rustfmt
 
     - name: cargo fmt
