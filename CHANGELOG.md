@@ -10,29 +10,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Update `system-configuration` crate to version 0.6.
-  See [PR_37](https://github.com/mxinden/if-watch/pull/37).
+  See [PR_37](https://github.com/libp2p/if-watch/pull/37).
 - Update `smol` crate to version 2.
-  See [PR_42](https://github.com/mxinden/if-watch/pull/42).
+  See [PR_42](https://github.com/libp2p/if-watch/pull/42).
 - linux: Improve error message by including specific reasons.
-  See [PR_39](https://github.com/mxinden/if-watch/pull/39).
+  See [PR_39](https://github.com/libp2p/if-watch/pull/39).
 - Update `rtnetlink` crate to version 0.13.
-  See [PR_35](https://github.com/mxinden/if-watch/pull/35).
+  See [PR_35](https://github.com/libp2p/if-watch/pull/35).
 - Update `windows` crate to allow version 0.52.
-  See [PR_35](https://github.com/mxinden/if-watch/pull/35).
+  See [PR_35](https://github.com/libp2p/if-watch/pull/35).
 
 ## [3.2.0]
 
 ### Fixed
 
 - Update `async-io`, `if-addrs` crates.
-  See [PR 33](https://github.com/mxinden/if-watch/pull/33).
+  See [PR 33](https://github.com/libp2p/if-watch/pull/33).
 
 ## [3.1.0]
 
 ### Fixed
 
 - Update `windows` crate.
-  See [PR 32](https://github.com/mxinden/if-watch/pull/32).
+  See [PR 32](https://github.com/libp2p/if-watch/pull/32).
 
 ## [3.0.1]
 
@@ -41,14 +41,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - For all architectures running the fallback option (e.g. Android) reverse the logic when checking if a recorded interface still exists in the new list to avoid reporting all interfaces as down and then up in the same resync().
   See [PR 31].
 
-[PR 31]: https://github.com/mxinden/if-watch/pull/31
+[PR 31]: https://github.com/libp2p/if-watch/pull/31
 
 ## [3.0.0]
 
 ### Changed
 - Feature gate async runtime, allowing opting between Tokio or smol. For every OS each `IfWatcher` is
   under the `tokio` or `smol` module. This makes it a breaking change as there
-  is no more a default implementation. See [PR 27](https://github.com/mxinden/if-watch/pull/27).
+  is no more a default implementation. See [PR 27](https://github.com/libp2p/if-watch/pull/27).
 
 ## [2.0.0]
 
@@ -57,16 +57,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   See [PR 23] and [PR 25].
 - Make `IfWatcher::new` synchronous. See [PR 24].
 
-[PR 23]: https://github.com/mxinden/if-watch/pull/23
-[PR 24]: https://github.com/mxinden/if-watch/pull/24
-[PR 25]: https://github.com/mxinden/if-watch/pull/25
+[PR 23]: https://github.com/libp2p/if-watch/pull/23
+[PR 24]: https://github.com/libp2p/if-watch/pull/24
+[PR 25]: https://github.com/libp2p/if-watch/pull/25
 
 ## [1.1.1]
 
 ### Fixed
 - Update to `rtnetlink` `v0.10`. See [PR 19].
 
-[PR 19]: https://github.com/mxinden/if-watch/pull/19
+[PR 19]: https://github.com/libp2p/if-watch/pull/19
 
 ## [1.1.0]
 ### Added
@@ -75,8 +75,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Update to `windows` `v0.34`. See [PR 16].
 
-[PR 15]: https://github.com/mxinden/if-watch/pull/15
-[PR 16]: https://github.com/mxinden/if-watch/pull/16
+[PR 15]: https://github.com/libp2p/if-watch/pull/15
+[PR 16]: https://github.com/libp2p/if-watch/pull/16
 
 ## [1.0.0] - 2022-01-12
 ### Added
