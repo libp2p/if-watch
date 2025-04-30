@@ -1,5 +1,5 @@
 use crate::{IfEvent, IpNet, Ipv4Net, Ipv6Net};
-use fnv::FnvHashSet;
+use fnv::FnvHashMap;
 use futures::ready;
 use futures::stream::{FusedStream, Stream, TryStreamExt};
 use futures::StreamExt;
@@ -37,7 +37,7 @@ pub mod smol {
 pub struct IfWatcher<T> {
     conn: Connection<RtnlMessage, T>,
     messages: Pin<Box<dyn Stream<Item = Result<RtnlMessage>> + Send>>,
-    addrs: FnvHashSet<IpNet>,
+    addrs: FnvHashMap<IpNet, u32>,
     queue: VecDeque<IfEvent>,
 }
 
@@ -73,7 +73,7 @@ where
             }
         });
         let messages = get_addrs_stream.chain(msg_stream).boxed();
-        let addrs = FnvHashSet::default();
+        let addrs = FnvHashMap::default();
         let queue = VecDeque::default();
         Ok(Self {
             conn,
@@ -85,12 +85,13 @@ where
 
     /// Iterate over current networks.
     pub fn iter(&self) -> impl Iterator<Item = &IpNet> {
-        self.addrs.iter()
+        self.addrs.keys()
     }
 
     fn add_address(&mut self, msg: AddressMessage) {
+        let idx = msg.header.index;
         for net in iter_nets(msg) {
-            if self.addrs.insert(net) {
+            if self.addrs.insert(net, idx).is_none() {
                 self.queue.push_back(IfEvent::Up(net));
             }
         }
@@ -98,7 +99,7 @@ where
 
     fn rem_address(&mut self, msg: AddressMessage) {
         for net in iter_nets(msg) {
-            if self.addrs.remove(&net) {
+            if self.addrs.remove(&net).is_some() {
                 self.queue.push_back(IfEvent::Down(net));
             }
         }
@@ -134,6 +135,11 @@ where
                 _ => {}
             }
         }
+    }
+
+    /// Returns the index of the addresses interface.
+    pub fn get_if_index(&self, address: &IpNet) -> Option<u32> {
+        self.addrs.get(address).cloned()
     }
 }
 
