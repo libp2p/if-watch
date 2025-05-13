@@ -2,7 +2,7 @@ use crate::{IfEvent, IpNet, Ipv4Net, Ipv6Net};
 use core_foundation::array::CFArray;
 use core_foundation::runloop::{kCFRunLoopCommonModes, CFRunLoop};
 use core_foundation::string::CFString;
-use fnv::FnvHashSet;
+use fnv::FnvHashMap;
 use futures::channel::mpsc;
 use futures::stream::{FusedStream, Stream};
 use if_addrs::IfAddr;
@@ -36,7 +36,7 @@ pub mod smol {
 
 #[derive(Debug)]
 pub struct IfWatcher {
-    addrs: FnvHashSet<IpNet>,
+    addrs: FnvHashMap<IpNet, Option<u32>>,
     queue: VecDeque<IfEvent>,
     rx: mpsc::Receiver<()>,
 }
@@ -56,19 +56,15 @@ impl IfWatcher {
 
     fn resync(&mut self) -> Result<()> {
         let addrs = if_addrs::get_if_addrs()?;
-        for old_addr in self.addrs.clone() {
-            if addrs
-                .iter()
-                .find(|addr| addr.ip() == old_addr.addr())
-                .is_none()
-            {
-                self.addrs.remove(&old_addr);
-                self.queue.push_back(IfEvent::Down(old_addr));
+        for old_addr in self.addrs.clone().keys() {
+            if !addrs.iter().any(|addr| addr.ip() == old_addr.addr()) {
+                self.addrs.remove(old_addr);
+                self.queue.push_back(IfEvent::Down(*old_addr));
             }
         }
         for new_addr in addrs {
             let ipnet = ifaddr_to_ipnet(new_addr.addr);
-            if self.addrs.insert(ipnet) {
+            if self.addrs.insert(ipnet, new_addr.index).is_none() {
                 self.queue.push_back(IfEvent::Up(ipnet));
             }
         }
@@ -77,7 +73,7 @@ impl IfWatcher {
 
     /// Iterate over current networks.
     pub fn iter(&self) -> impl Iterator<Item = &IpNet> {
-        self.addrs.iter()
+        self.addrs.keys()
     }
 
     /// Poll for an address change event.
@@ -93,6 +89,11 @@ impl IfWatcher {
                 return Poll::Ready(Err(error));
             }
         }
+    }
+
+    /// Returns the index of the addresses interface.
+    pub fn get_if_index(&self, address: &IpNet) -> Option<u32> {
+        self.addrs.get(address).cloned().flatten()
     }
 }
 

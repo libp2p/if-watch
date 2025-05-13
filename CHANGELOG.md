@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.2]
+
+### Added
+
+- Add `IfWatcher::get_if_index` to query the interface index of an address.
+  See [PR 51](https://github.com/libp2p/if-watch/pull/51).
 
 ## [3.2.1]
 

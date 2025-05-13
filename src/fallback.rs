@@ -1,9 +1,10 @@
 use crate::IfEvent;
 use async_io::Timer;
+use fnv::FnvHashMap;
 use futures::stream::{FusedStream, Stream};
 use if_addrs::IfAddr;
 use ipnet::{IpNet, Ipv4Net, Ipv6Net};
-use std::collections::{HashSet, VecDeque};
+use std::collections::VecDeque;
 use std::io::Result;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -32,7 +33,7 @@ pub mod smol {
 /// An address set/watcher
 #[derive(Debug)]
 pub struct IfWatcher {
-    addrs: HashSet<IpNet>,
+    addrs: FnvHashMap<IpNet, Option<u32>>,
     queue: VecDeque<IfEvent>,
     ticker: Timer,
 }
@@ -49,15 +50,15 @@ impl IfWatcher {
 
     fn resync(&mut self) -> Result<()> {
         let addrs = if_addrs::get_if_addrs()?;
-        for old_addr in self.addrs.clone() {
+        for old_addr in self.addrs.clone().keys() {
             if !addrs.iter().any(|addr| addr.ip() == old_addr.addr()) {
-                self.addrs.remove(&old_addr);
-                self.queue.push_back(IfEvent::Down(old_addr));
+                self.addrs.remove(old_addr);
+                self.queue.push_back(IfEvent::Down(*old_addr));
             }
         }
         for new_addr in addrs {
             let ipnet = ifaddr_to_ipnet(new_addr.addr);
-            if self.addrs.insert(ipnet) {
+            if self.addrs.insert(ipnet, new_addr.index).is_none() {
                 self.queue.push_back(IfEvent::Up(ipnet));
             }
         }
@@ -66,7 +67,7 @@ impl IfWatcher {
 
     /// Iterate over current networks.
     pub fn iter(&self) -> impl Iterator<Item = &IpNet> {
-        self.addrs.iter()
+        self.addrs.keys()
     }
 
     /// Poll for an address change event.
@@ -82,6 +83,11 @@ impl IfWatcher {
                 return Poll::Ready(Err(err));
             }
         }
+    }
+
+    /// Returns the interface index for an address.
+    pub fn get_if_index(&self, address: &IpNet) -> Option<u32> {
+        self.addrs.get(address).cloned().flatten()
     }
 }
 
