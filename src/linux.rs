@@ -4,15 +4,14 @@ use futures::ready;
 use futures::stream::{FusedStream, Stream, TryStreamExt};
 use futures::StreamExt;
 use netlink_packet_core::NetlinkPayload;
-use netlink_packet_route::rtnl::address::nlas::Nla;
-use netlink_packet_route::rtnl::{AddressMessage, RtnlMessage};
+use netlink_packet_route::address::{AddressAttribute, AddressMessage};
+use netlink_packet_route::RouteNetlinkMessage;
 use netlink_proto::Connection;
 use netlink_sys::{AsyncSocket, SocketAddr};
 use rtnetlink::constants::{RTMGRP_IPV4_IFADDR, RTMGRP_IPV6_IFADDR};
 use std::collections::VecDeque;
 use std::future::Future;
-use std::io::{Error, ErrorKind, Result};
-use std::net::{Ipv4Addr, Ipv6Addr};
+use std::io::{ErrorKind, Result};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
@@ -35,8 +34,8 @@ pub mod smol {
 }
 
 pub struct IfWatcher<T> {
-    conn: Connection<RtnlMessage, T>,
-    messages: Pin<Box<dyn Stream<Item = Result<RtnlMessage>> + Send>>,
+    conn: Connection<RouteNetlinkMessage, T>,
+    messages: Pin<Box<dyn Stream<Item = Result<RouteNetlinkMessage>> + Send>>,
     addrs: FnvHashSet<IpNet>,
     queue: VecDeque<IfEvent>,
 }
@@ -63,8 +62,8 @@ where
             .address()
             .get()
             .execute()
-            .map_ok(RtnlMessage::NewAddress)
-            .map_err(|err| Error::new(ErrorKind::Other, err));
+            .map_ok(RouteNetlinkMessage::NewAddress)
+            .map_err(std::io::Error::other);
         let msg_stream = messages.filter_map(|(msg, _)| async {
             match msg.payload {
                 NetlinkPayload::Error(err) => Some(Err(err.to_io())),
@@ -129,8 +128,8 @@ where
                 }
             };
             match message {
-                RtnlMessage::NewAddress(msg) => self.add_address(msg),
-                RtnlMessage::DelAddress(msg) => self.rem_address(msg),
+                RouteNetlinkMessage::NewAddress(msg) => self.add_address(msg),
+                RouteNetlinkMessage::DelAddress(msg) => self.rem_address(msg),
                 _ => {}
             }
         }
@@ -143,25 +142,11 @@ fn socket_err(error: &str) -> std::io::Error {
 
 fn iter_nets(msg: AddressMessage) -> impl Iterator<Item = IpNet> {
     let prefix = msg.header.prefix_len;
-    let family = msg.header.family;
-    msg.nlas.into_iter().filter_map(move |nla| {
-        if let Nla::Address(octets) = nla {
-            match family {
-                2 => {
-                    let mut addr = [0; 4];
-                    addr.copy_from_slice(&octets);
-                    Some(IpNet::V4(
-                        Ipv4Net::new(Ipv4Addr::from(addr), prefix).unwrap(),
-                    ))
-                }
-                10 => {
-                    let mut addr = [0; 16];
-                    addr.copy_from_slice(&octets);
-                    Some(IpNet::V6(
-                        Ipv6Net::new(Ipv6Addr::from(addr), prefix).unwrap(),
-                    ))
-                }
-                _ => None,
+    msg.attributes.into_iter().filter_map(move |attr| {
+        if let AddressAttribute::Address(addr) = attr {
+            match addr {
+                std::net::IpAddr::V4(ipv4) => Some(IpNet::V4(Ipv4Net::new(ipv4, prefix).unwrap())),
+                std::net::IpAddr::V6(ipv6) => Some(IpNet::V6(Ipv6Net::new(ipv6, prefix).unwrap())),
             }
         } else {
             None

@@ -7,7 +7,7 @@ use futures::channel::mpsc;
 use futures::stream::{FusedStream, Stream};
 use if_addrs::IfAddr;
 use std::collections::VecDeque;
-use std::io::Result;
+use std::io::{Error, Result};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use system_configuration::dynamic_store::{
@@ -86,8 +86,12 @@ impl IfWatcher {
             if let Some(event) = self.queue.pop_front() {
                 return Poll::Ready(Ok(event));
             }
-            if Pin::new(&mut self.rx).poll_next(cx).is_pending() {
-                return Poll::Pending;
+            match Pin::new(&mut self.rx).poll_next(cx) {
+                Poll::Pending => return Poll::Pending,
+                Poll::Ready(None) => {
+                    return Poll::Ready(Err(Error::other("Background task stopped")))
+                }
+                Poll::Ready(_) => {}
             }
             if let Err(error) = self.resync() {
                 return Poll::Ready(Err(error));
@@ -134,17 +138,24 @@ fn callback(_store: SCDynamicStore, _changed_keys: CFArray<CFString>, info: &mut
 }
 
 fn background_task(tx: mpsc::Sender<()>) {
-    let store = SCDynamicStoreBuilder::new("global-network-watcher")
+    let Some(store) = SCDynamicStoreBuilder::new("global-network-watcher")
         .callback_context(SCDynamicStoreCallBackContext {
             callout: callback,
             info: tx,
         })
-        .build();
+        .build()
+    else {
+        log::error!("Failed to create SCDynamicStore");
+        return;
+    };
     store.set_notification_keys(
         &CFArray::<CFString>::from_CFTypes(&[]),
         &CFArray::from_CFTypes(&[CFString::new("State:/Network/Interface/.*/IPv.")]),
     );
-    let source = store.create_run_loop_source();
+    let Some(source) = store.create_run_loop_source() else {
+        log::error!("Failed to create run loop source");
+        return;
+    };
     let run_loop = CFRunLoop::get_current();
     run_loop.add_source(&source, unsafe { kCFRunLoopCommonModes });
     CFRunLoop::run_current();
