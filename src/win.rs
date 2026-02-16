@@ -10,7 +10,7 @@ use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use windows::Win32::Foundation::{BOOLEAN, HANDLE};
+use windows::Win32::Foundation::HANDLE;
 use windows::Win32::NetworkManagement::IpHelper::{
     CancelMibChangeNotify2, NotifyIpInterfaceChange, MIB_IPINTERFACE_ROW, MIB_NOTIFICATION_TYPE,
 };
@@ -168,9 +168,10 @@ impl IpChangeNotification {
                 AF_UNSPEC,
                 Some(global_callback),
                 Some(callback as _),
-                BOOLEAN(0),
+                false,
                 &mut handle as _,
             )
+            .ok()
             .map_err(|err| Error::new(ErrorKind::Other, err.to_string()))?;
         }
         Ok(Self { callback, handle })
@@ -180,7 +181,7 @@ impl IpChangeNotification {
 impl Drop for IpChangeNotification {
     fn drop(&mut self) {
         unsafe {
-            if let Err(err) = CancelMibChangeNotify2(self.handle) {
+            if let Err(err) = CancelMibChangeNotify2(self.handle).ok() {
                 log::error!("error deregistering notification: {}", err);
             }
             drop(Box::from_raw(self.callback));
