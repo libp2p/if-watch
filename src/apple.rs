@@ -1,6 +1,9 @@
 use crate::{IfEvent, IpNet, Ipv4Net, Ipv6Net};
+#[cfg(target_os = "macos")]
 use core_foundation::array::CFArray;
+#[cfg(target_os = "macos")]
 use core_foundation::runloop::{kCFRunLoopCommonModes, CFRunLoop};
+#[cfg(target_os = "macos")]
 use core_foundation::string::CFString;
 use fnv::FnvHashSet;
 use futures::channel::mpsc;
@@ -10,6 +13,7 @@ use std::collections::VecDeque;
 use std::io::{Error, Result};
 use std::pin::Pin;
 use std::task::{Context, Poll};
+#[cfg(target_os = "macos")]
 use system_configuration::dynamic_store::{
     SCDynamicStore, SCDynamicStoreBuilder, SCDynamicStoreCallBackContext,
 };
@@ -44,7 +48,14 @@ pub struct IfWatcher {
 impl IfWatcher {
     pub fn new() -> Result<Self> {
         let (tx, rx) = mpsc::channel(1);
-        std::thread::spawn(|| background_task(tx));
+        // macOS exposes the SystemConfiguration `SCDynamicStore` APIs for
+        // event-driven interface change notifications. iOS (and the other
+        // Apple platforms) do not ship those symbols, so we fall back to a
+        // periodic poll there. See rust-libp2p#6161.
+        #[cfg(target_os = "macos")]
+        std::thread::spawn(|| background_task_macos(tx));
+        #[cfg(not(target_os = "macos"))]
+        std::thread::spawn(|| background_task_ios(tx));
         let mut watcher = Self {
             addrs: Default::default(),
             queue: Default::default(),
@@ -130,6 +141,7 @@ fn ifaddr_to_ipnet(addr: IfAddr) -> IpNet {
     }
 }
 
+#[cfg(target_os = "macos")]
 fn callback(_store: SCDynamicStore, _changed_keys: CFArray<CFString>, info: &mut mpsc::Sender<()>) {
     match info.try_send(()) {
         Err(err) if err.is_disconnected() => CFRunLoop::get_current().stop(),
@@ -137,7 +149,8 @@ fn callback(_store: SCDynamicStore, _changed_keys: CFArray<CFString>, info: &mut
     }
 }
 
-fn background_task(tx: mpsc::Sender<()>) {
+#[cfg(target_os = "macos")]
+fn background_task_macos(tx: mpsc::Sender<()>) {
     let Some(store) = SCDynamicStoreBuilder::new("global-network-watcher")
         .callback_context(SCDynamicStoreCallBackContext {
             callout: callback,
@@ -159,4 +172,20 @@ fn background_task(tx: mpsc::Sender<()>) {
     let run_loop = CFRunLoop::get_current();
     run_loop.add_source(&source, unsafe { kCFRunLoopCommonModes });
     CFRunLoop::run_current();
+}
+
+/// Fallback watcher for Apple platforms without the SystemConfiguration
+/// `SCDynamicStore` APIs (iOS, tvOS, watchOS, visionOS). Polls periodically
+/// and signals the watcher to resync the interface list. See rust-libp2p#6161.
+#[cfg(not(target_os = "macos"))]
+fn background_task_ios(mut tx: mpsc::Sender<()>) {
+    loop {
+        std::thread::sleep(std::time::Duration::from_secs(2));
+        match tx.try_send(()) {
+            // Channel has capacity 1; a full channel just means the watcher
+            // hasn't drained the previous tick yet, so we drop this one.
+            Err(err) if err.is_disconnected() => return,
+            _ => {}
+        }
+    }
 }
