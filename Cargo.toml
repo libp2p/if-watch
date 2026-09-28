@@ -8,6 +8,9 @@ license = "MIT OR Apache-2.0"
 description = "crossplatform asynchronous network watcher"
 repository = "https://github.com/libp2p/if-watch"
 
+[package.metadata.docs.rs]
+all-features = true
+
 [lib]
 crate-type = ["cdylib", "lib"]
 
