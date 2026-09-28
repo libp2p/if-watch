@@ -2,6 +2,8 @@
 #![deny(missing_docs)]
 #![deny(warnings)]
 
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
 pub use ipnet::{IpNet, Ipv4Net, Ipv6Net};
 
 #[cfg(target_os = "macos")]
